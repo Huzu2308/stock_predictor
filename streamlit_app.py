@@ -9,24 +9,22 @@ from sklearn.model_selection import train_test_split
 # Streamlit app title
 st.title("Samsung Stock Price Prediction")
 
-# Step 1: Upload the Excel file
-uploaded_file = st.file_uploader("Upload your Samsung stock data Excel file", type="xlsx")
+# Step 1: Load the Excel file from the repository
+file_path = "samsung_stock_data.xlsx"  # Ensure this file is in the same directory as the script
+try:
+    stock_data = pd.read_excel(file_path)
 
-if uploaded_file is not None:
-    # Step 2: Load the data
-    stock_data = pd.read_excel(uploaded_file)
-
-    # Convert the 'Date' column to datetime and filter required date range
+    # Step 2: Convert the 'Date' column to datetime and filter required date range
     stock_data['Date'] = pd.to_datetime(stock_data['Date'], errors='coerce')
     stock_data = stock_data.dropna(subset=['Date'])
     stock_data_filtered = stock_data[(stock_data['Date'] >= '2000-01-01') & (stock_data['Date'] <= '2023-12-31')]
 
-    # Select and scale the 'Close' prices
+    # Step 3: Select and scale the 'Close' prices
     close_prices = stock_data_filtered['Close'].values.reshape(-1, 1)
     scaler = MinMaxScaler(feature_range=(0, 1))
     scaled_data = scaler.fit_transform(close_prices)
 
-    # Create the training dataset with a lookback of 365 days (1 year)
+    # Step 4: Create the training dataset with a lookback of 365 days (1 year)
     lookback = 365
     X, y = [], []
     for i in range(lookback, len(scaled_data)):
@@ -34,17 +32,17 @@ if uploaded_file is not None:
         y.append(scaled_data[i, 0])
     X, y = np.array(X), np.array(y)
 
-    # Flatten X for XGBoost
+    # Step 5: Flatten X for XGBoost
     X_train_flat = X.reshape(X.shape[0], -1)
 
-    # Split the data into training and test sets (80% training, 20% test)
+    # Step 6: Split the data into training and test sets (80% training, 20% test)
     X_train, X_test, y_train, y_test = train_test_split(X_train_flat, y, test_size=0.2, shuffle=False)
 
-    # Train the XGBoost model
+    # Step 7: Train the XGBoost model
     xgb_model = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=100, learning_rate=0.05, max_depth=5)
     xgb_model.fit(X_train, y_train)
 
-    # Predict the next day's price for each of the next 730 days (2 years)
+    # Step 8: Predict the next day's price for each of the next 730 days (2 years)
     last_known_data = scaled_data[-lookback:]
     predicted_prices = []
 
@@ -54,19 +52,19 @@ if uploaded_file is not None:
         predicted_prices.append(prediction[0])
         last_known_data = np.append(last_known_data[1:], prediction)
 
-    # Convert predictions back to the original scale
+    # Step 9: Convert predictions back to the original scale
     predicted_prices_rescaled = scaler.inverse_transform(np.array(predicted_prices).reshape(-1, 1))
 
-    # Generate future dates for the next 2 years (730 days)
+    # Step 10: Generate future dates for the next 2 years (730 days)
     last_date = stock_data_filtered['Date'].iloc[-1]
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=730)
 
-    # Concatenate actual and predicted data for plotting
+    # Step 11: Concatenate actual and predicted data for plotting
     actual_dates = stock_data_filtered['Date'].values
     all_dates = np.concatenate((actual_dates, future_dates.values))
     all_prices = np.concatenate((stock_data_filtered['Close'].values, predicted_prices_rescaled.flatten()))
 
-    # Plot the results
+    # Step 12: Plot the results
     fig, ax = plt.subplots(figsize=(14, 7))
     ax.plot(all_dates, all_prices, label='Actual + Predicted Prices', color='blue')
     ax.plot(future_dates, predicted_prices_rescaled, label='Predicted Prices', color='red', linestyle='--')
@@ -78,3 +76,6 @@ if uploaded_file is not None:
 
     # Display the plot in Streamlit
     st.pyplot(fig)
+
+except FileNotFoundError:
+    st.error("The file 'samsung_stock_data.xlsx' was not found in the repository. Please add it to the same directory as the script.")
